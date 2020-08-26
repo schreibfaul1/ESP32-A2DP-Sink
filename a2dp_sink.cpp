@@ -383,16 +383,8 @@ bool a2dp_sink_init(String deviceName){
     s_BT_sink_name = deviceName;
     log_i("Device name will be set to '%s'", s_BT_sink_name.c_str());
 
-//    ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_BLE));
-
-
-
-
     if(!btStart()) {log_e("Failed to initialize controller"); return false;}
     else log_i("controller initialized");
-
-//    res = esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT);
-//    if(res != ESP_OK) {log_e("Enable controller failed"); return false;}
 
     res = esp_bluedroid_init();
     if(res != ESP_OK) {log_e("Failed to initialize bluedroid"); return false;}
