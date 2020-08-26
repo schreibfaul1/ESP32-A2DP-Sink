@@ -1,5 +1,5 @@
 /*
- * a2dp_sink1.h
+ * a2dp_sink.h
  *
  *  Created on: 26.08.2020
  *      Author: wolle
