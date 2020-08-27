@@ -1,10 +1,9 @@
 /*
  * a2dp_sink.cpp.c
  *
- *  Created on: 26.08.2020
+ *  Created on: 27.08.2020
  *      Author: wolle
  */
-
 
 #include "a2dp_sink.h"
 
@@ -32,6 +31,7 @@ void config_i2s() {
     s_i2s_config.intr_alloc_flags = 0; // default interrupt priority
     s_i2s_config.dma_buf_count = 8;
     s_i2s_config.dma_buf_len = 64;
+    s_i2s_config.tx_desc_auto_clear = true;
     s_i2s_config.use_apll = false;
 
     i2s_driver_install(s_i2s_port, &s_i2s_config, 0, NULL);
@@ -64,7 +64,7 @@ esp_a2d_mct_t get_audio_type() {
 }
 //---------------------------------------------------------------------------------------------------------------------
 bool bt_app_work_dispatch(app_callback_t p_cback, uint16_t event, void *p_params, int param_len){
-    log_i("event 0x%x, param len %d", event, param_len);
+    log_d("event 0x%x, param len %d", event, param_len);
 
     app_msg_t msg;
     memset(&msg, 0, sizeof(app_msg_t));
@@ -81,19 +81,18 @@ bool bt_app_work_dispatch(app_callback_t p_cback, uint16_t event, void *p_params
             return bt_app_send_msg(&msg);
         }
     }
-
     return false;
 }
 //---------------------------------------------------------------------------------------------------------------------
 void bt_app_work_dispatched(app_msg_t *msg){
-    log_i("event 0x%x, sig 0x%x", msg->event, msg->sig);
+    log_d("event 0x%x, sig 0x%x", msg->event, msg->sig);
     if (msg->cb) {
         msg->cb(msg->event, msg->param);
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
 bool bt_app_send_msg(app_msg_t *msg){
-    log_i("event 0x%x, sig 0x%x", msg->event, msg->sig);
+    log_d("event 0x%x, sig 0x%x", msg->event, msg->sig);
     if (msg == NULL) {
         return false;
     }
@@ -109,10 +108,10 @@ void bt_app_task_handler(void *arg){
     app_msg_t msg;
     for (;;) {
         if (pdTRUE == xQueueReceive(s_bt_app_task_queue, &msg, (portTickType)portMAX_DELAY)) {
-            log_i("enent 0x%x, sig 0x%x",msg.event, msg.sig);
+            log_d("enent 0x%x, sig 0x%x",msg.event, msg.sig);
             switch (msg.sig) {
             case APP_SIG_WORK_DISPATCH:
-                log_w("APP_SIG_WORK_DISPATCH sig: %d", msg.sig);
+                log_d("APP_SIG_WORK_DISPATCH sig: %d", msg.sig);
                 bt_app_work_dispatched(&msg);
                 break;
             default:
@@ -154,31 +153,31 @@ void bt_app_alloc_meta_buffer(esp_avrc_ct_cb_param_t *param){
 //---------------------------------------------------------------------------------------------------------------------
 void bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param){
     switch (event) {
-    case ESP_AVRC_CT_METADATA_RSP_EVT:
-        log_d("ESP_AVRC_CT_METADATA_RSP_EVT");
-        bt_app_alloc_meta_buffer(param);
-        bt_app_work_dispatch(bt_av_hdl_avrc_evt, event, param, sizeof(esp_avrc_ct_cb_param_t));
-        break;
-    case ESP_AVRC_CT_CONNECTION_STATE_EVT:
-        log_d("ESP_AVRC_CT_CONNECTION_STATE_EVT");
-        bt_app_work_dispatch(bt_av_hdl_avrc_evt, event, param, sizeof(esp_avrc_ct_cb_param_t));
-        break;
-    case ESP_AVRC_CT_PASSTHROUGH_RSP_EVT:
-        log_d("ESP_AVRC_CT_PASSTHROUGH_RSP_EVT");
-        bt_app_work_dispatch(bt_av_hdl_avrc_evt, event, param, sizeof(esp_avrc_ct_cb_param_t));
-        break;
-    case ESP_AVRC_CT_CHANGE_NOTIFY_EVT:
-        log_d("ESP_AVRC_CT_CHANGE_NOTIFY_EVT");
-        bt_app_work_dispatch(bt_av_hdl_avrc_evt, event, param, sizeof(esp_avrc_ct_cb_param_t));
-        break;
-    case ESP_AVRC_CT_REMOTE_FEATURES_EVT: {
-        log_d("ESP_AVRC_CT_REMOTE_FEATURES_EVT");
-        bt_app_work_dispatch(bt_av_hdl_avrc_evt, event, param, sizeof(esp_avrc_ct_cb_param_t));
-        break;
-    }
-    default:
-        log_e("Invalid AVRC event: %d", event);
-        break;
+        case ESP_AVRC_CT_METADATA_RSP_EVT:
+            log_d("ESP_AVRC_CT_METADATA_RSP_EVT");
+            bt_app_alloc_meta_buffer(param);
+            bt_app_work_dispatch(bt_av_hdl_avrc_evt, event, param, sizeof(esp_avrc_ct_cb_param_t));
+            break;
+        case ESP_AVRC_CT_CONNECTION_STATE_EVT:
+            log_d("ESP_AVRC_CT_CONNECTION_STATE_EVT");
+            bt_app_work_dispatch(bt_av_hdl_avrc_evt, event, param, sizeof(esp_avrc_ct_cb_param_t));
+            break;
+        case ESP_AVRC_CT_PASSTHROUGH_RSP_EVT:
+            log_d("ESP_AVRC_CT_PASSTHROUGH_RSP_EVT");
+            bt_app_work_dispatch(bt_av_hdl_avrc_evt, event, param, sizeof(esp_avrc_ct_cb_param_t));
+            break;
+        case ESP_AVRC_CT_CHANGE_NOTIFY_EVT:
+            log_d("ESP_AVRC_CT_CHANGE_NOTIFY_EVT");
+            bt_app_work_dispatch(bt_av_hdl_avrc_evt, event, param, sizeof(esp_avrc_ct_cb_param_t));
+            break;
+        case ESP_AVRC_CT_REMOTE_FEATURES_EVT: {
+            log_d("ESP_AVRC_CT_REMOTE_FEATURES_EVT");
+            bt_app_work_dispatch(bt_av_hdl_avrc_evt, event, param, sizeof(esp_avrc_ct_cb_param_t));
+            break;
+        }
+        default:
+            log_e("Invalid AVRC event: %d", event);
+            break;
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
@@ -223,7 +222,7 @@ void bt_av_hdl_a2d_evt(uint16_t event, void *p_param){
 
             i2s_set_clk(s_i2s_port, s_i2s_config.sample_rate, s_i2s_config.bits_per_sample, (i2s_channel_t)2);
 
-            log_i("configure audio player %x-%x-%x-%x\n",
+            log_i("configure audio player [%02x-%02x-%02x-%02x]",
                      a2d->audio_cfg.mcc.cie.sbc[0],
                      a2d->audio_cfg.mcc.cie.sbc[1],
                      a2d->audio_cfg.mcc.cie.sbc[2],
@@ -246,99 +245,99 @@ void bt_av_new_track(){
 //---------------------------------------------------------------------------------------------------------------------
 void bt_av_notify_evt_handler(uint8_t event_id, uint32_t event_parameter){
     switch (event_id) {
-    case ESP_AVRC_RN_TRACK_CHANGE:
-        log_d("ESP_AVRC_RN_TRACK_CHANGE %d",event_id);
-        bt_av_new_track();
-        break;
-    default:
-        log_e("unhandled evt %d", event_id);
-        break;
+        case ESP_AVRC_RN_TRACK_CHANGE:
+            log_d("ESP_AVRC_RN_TRACK_CHANGE %d",event_id);
+            bt_av_new_track();
+            break;
+        default:
+            log_e("unhandled evt %d", event_id);
+            break;
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
 void bt_av_hdl_avrc_evt(uint16_t event, void *p_param){
     esp_avrc_ct_cb_param_t *rc = (esp_avrc_ct_cb_param_t *)(p_param);
     switch (event) {
-    case ESP_AVRC_CT_CONNECTION_STATE_EVT: {
-        uint8_t *bda = rc->conn_stat.remote_bda;
-        s_bda = rc->conn_stat.remote_bda;
-        log_i("AVRC conn_state evt: state %d, [%02x:%02x:%02x:%02x:%02x:%02x]",
-                 rc->conn_stat.connected, bda[0], bda[1], bda[2], bda[3], bda[4], bda[5]);
+        case ESP_AVRC_CT_CONNECTION_STATE_EVT: {
+            uint8_t *bda = rc->conn_stat.remote_bda;
+            s_bda = rc->conn_stat.remote_bda;
+            log_i("AVRC conn_state evt: state %d, [%02x:%02x:%02x:%02x:%02x:%02x]",
+                     rc->conn_stat.connected, bda[0], bda[1], bda[2], bda[3], bda[4], bda[5]);
 
-        if (rc->conn_stat.connected) {
-            bt_av_new_track();
+            if (rc->conn_stat.connected) {
+                bt_av_new_track();
+            }
+            break;
         }
-        break;
-    }
-    case ESP_AVRC_CT_PASSTHROUGH_RSP_EVT: {
-        log_i("AVRC passthrough rsp: key_code 0x%x, key_state %d", rc->psth_rsp.key_code, rc->psth_rsp.key_state);
-        break;
-    }
-    case ESP_AVRC_CT_METADATA_RSP_EVT: {
-        ESP_LOGI(BT_AV_TAG, "AVRC metadata rsp: attribute id 0x%x, %s", rc->meta_rsp.attr_id, rc->meta_rsp.attr_text);
-        free(rc->meta_rsp.attr_text);
-        break;
-    }
-    case ESP_AVRC_CT_CHANGE_NOTIFY_EVT: {
-        log_i("AVRC event notification: %d, param: %d", rc->change_ntf.event_id, rc->change_ntf.event_parameter);
-        bt_av_notify_evt_handler(rc->change_ntf.event_id, rc->change_ntf.event_parameter);
-        break;
-    }
-    case ESP_AVRC_CT_REMOTE_FEATURES_EVT: {
-        log_i("AVRC remote features %x", rc->rmt_feats.feat_mask);
-        break;
-    }
-    default:
-        log_e("unhandled evt %d", event);
-        break;
+        case ESP_AVRC_CT_PASSTHROUGH_RSP_EVT: {
+            log_i("AVRC passthrough rsp: key_code 0x%x, key_state %d", rc->psth_rsp.key_code, rc->psth_rsp.key_state);
+            break;
+        }
+        case ESP_AVRC_CT_METADATA_RSP_EVT: {
+            ESP_LOGI(BT_AV_TAG, "AVRC metadata rsp: attribute id 0x%x, %s", rc->meta_rsp.attr_id, rc->meta_rsp.attr_text);
+            free(rc->meta_rsp.attr_text);
+            break;
+        }
+        case ESP_AVRC_CT_CHANGE_NOTIFY_EVT: {
+            log_i("AVRC event notification: %d, param: %d", rc->change_ntf.event_id, rc->change_ntf.event_parameter);
+            bt_av_notify_evt_handler(rc->change_ntf.event_id, rc->change_ntf.event_parameter);
+            break;
+        }
+        case ESP_AVRC_CT_REMOTE_FEATURES_EVT: {
+            log_i("AVRC remote features 0x%x", rc->rmt_feats.feat_mask);
+            break;
+        }
+        default:
+            log_e("unhandled evt %d", event);
+            break;
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
 void bt_av_hdl_stack_evt(uint16_t event, void *p_param){
     switch (event) {
-    case BT_APP_EVT_STACK_UP: {
-        log_i("av_hdl_stack_evt %s","BT_APP_EVT_STACK_UP");
-        /* set up device name */
-        esp_bt_dev_set_device_name(s_BT_sink_name.c_str());
+        case BT_APP_EVT_STACK_UP: {
+            log_d("av_hdl_stack_evt %s","BT_APP_EVT_STACK_UP");
+            /* set up device name */
+            esp_bt_dev_set_device_name(s_BT_sink_name.c_str());
 
-        /* initialize A2DP sink */
-        esp_a2d_register_callback(bt_app_a2d_cb);
-        esp_a2d_sink_register_data_callback(bt_app_a2d_data_cb);
-        esp_a2d_sink_init();
+            /* initialize A2DP sink */
+            esp_a2d_register_callback(bt_app_a2d_cb);
+            esp_a2d_sink_register_data_callback(bt_app_a2d_data_cb);
+            esp_a2d_sink_init();
 
-        /* initialize AVRCP controller */
-        esp_avrc_ct_init();
-        esp_avrc_ct_register_callback(bt_app_rc_ct_cb);
+            /* initialize AVRCP controller */
+            esp_avrc_ct_init();
+            esp_avrc_ct_register_callback(bt_app_rc_ct_cb);
 
-        /* set discoverable and connectable mode, wait to be connected */
-        esp_bt_gap_set_scan_mode(ESP_BT_SCAN_MODE_CONNECTABLE_DISCOVERABLE);
-        break;
-    }
-    default:
-        log_e("unhandled evt %d",event);
-        break;
+            /* set discoverable and connectable mode, wait to be connected */
+            esp_bt_gap_set_scan_mode(ESP_BT_SCAN_MODE_CONNECTABLE_DISCOVERABLE);
+            break;
+        }
+        default:
+            log_e("unhandled evt %d",event);
+            break;
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
 void bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param){
     switch (event) {
-    case ESP_A2D_CONNECTION_STATE_EVT:
-        log_d("ESP_A2D_CONNECTION_STATE_EVT");
-        bt_app_work_dispatch(bt_av_hdl_a2d_evt, event, param, sizeof(esp_a2d_cb_param_t));
-        break;
-    case ESP_A2D_AUDIO_STATE_EVT:
-        log_d("ESP_A2D_AUDIO_STATE_EVT");
-        s_audio_state = param->audio_stat.state;
-        bt_app_work_dispatch(bt_av_hdl_a2d_evt,event, param, sizeof(esp_a2d_cb_param_t));
-        break;
-    case ESP_A2D_AUDIO_CFG_EVT: {
-        log_d("ESP_A2D_AUDIO_CFG_EVT");
-        bt_app_work_dispatch(bt_av_hdl_a2d_evt, event, param, sizeof(esp_a2d_cb_param_t));
-        break;
-    }
-    default:
-        log_e("Invalid A2DP event: %d");
-        break;
+        case ESP_A2D_CONNECTION_STATE_EVT:
+            log_d("ESP_A2D_CONNECTION_STATE_EVT");
+            bt_app_work_dispatch(bt_av_hdl_a2d_evt, event, param, sizeof(esp_a2d_cb_param_t));
+            break;
+        case ESP_A2D_AUDIO_STATE_EVT:
+            log_d("ESP_A2D_AUDIO_STATE_EVT");
+            s_audio_state = param->audio_stat.state;
+            bt_app_work_dispatch(bt_av_hdl_a2d_evt,event, param, sizeof(esp_a2d_cb_param_t));
+            break;
+        case ESP_A2D_AUDIO_CFG_EVT: {
+            log_d("ESP_A2D_AUDIO_CFG_EVT");
+            bt_app_work_dispatch(bt_av_hdl_a2d_evt, event, param, sizeof(esp_a2d_cb_param_t));
+            break;
+        }
+        default:
+            log_e("Invalid A2DP event: %d");
+            break;
     }
 }
 //---------------------------------------------------------------------------------------------------------------------
@@ -398,13 +397,13 @@ bool a2dp_sink_init(String deviceName){
 
     bt_app_work_dispatch(bt_av_hdl_stack_evt, BT_APP_EVT_STACK_UP, NULL, 0);
 
-    esp_bt_pin_type_t pin_type = ESP_BT_PIN_TYPE_FIXED; // Set default parameters for Legacy Pairing
-    esp_bt_pin_code_t pin_code;                         // Use fixed pin code
-    pin_code[0] = '1';
-    pin_code[1] = '2';
-    pin_code[2] = '3';
-    pin_code[3] = '4';
-    esp_bt_gap_set_pin(pin_type, 4, pin_code);
+//    esp_bt_pin_type_t pin_type = ESP_BT_PIN_TYPE_FIXED; // Set default parameters for Legacy Pairing
+//    esp_bt_pin_code_t pin_code;                         // Use fixed pin code
+//    pin_code[0] = '1';
+//    pin_code[1] = '2';
+//    pin_code[2] = '3';
+//    pin_code[3] = '4';
+//    esp_bt_gap_set_pin(pin_type, 4, pin_code);
 
     config_i2s();
 
