@@ -2,7 +2,8 @@
  * a2dp_sink.h
  *
  *  Created on: 26.08.2020
- *      Author: wolle
+ *  Updated on: 27.10.2023
+ *      Author: Wolle
  */
 
 #ifndef A2DP_SINK_H_
@@ -19,6 +20,9 @@
 #include "esp_avrc_api.h"
 
 #define APP_SIG_WORK_DISPATCH (0x01)
+
+extern __attribute__((weak)) void bt_info(const char*);
+extern __attribute__((weak)) void bt_state(const char*);
 
 typedef void (* app_callback_t) (uint16_t event, void *param);
 
@@ -47,7 +51,7 @@ void bt_app_alloc_meta_buffer(esp_avrc_ct_cb_param_t *param);
 void bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param);
 void bt_av_hdl_a2d_evt(uint16_t event, void *p_param);
 void bt_av_new_track();
-void bt_av_notify_evt_handler(uint8_t event_id, uint32_t event_parameter);
+void bt_av_notify_evt_handler(uint8_t event_id, esp_avrc_rn_param_t event_parameter);
 void bt_av_hdl_avrc_evt(uint16_t event, void *p_param);
 void bt_av_hdl_stack_evt(uint16_t event, void *p_param);
 void bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param);
