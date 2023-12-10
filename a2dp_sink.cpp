@@ -1,8 +1,10 @@
+#include "driver/i2s_common.h"
+#include "driver/i2s_std.h"
 /*
  * a2dp_sink.cpp.c
  *
  *  Created on: 27.08.2020
- *  Updated on: 27.10.2023
+ *  Updated on: 10.10.2023
  *      Author: Wolle
  */
 
@@ -17,46 +19,55 @@ const char           *s_a2d_audio_state_str[3] = {"Suspended", "Stopped", "Start
 esp_a2d_mct_t         s_audio_type             = 0;
 uint8_t              *s_bda                    = NULL;
 String                s_BT_sink_name           = "";
-i2s_port_t            s_i2s_port = I2S_NUM_0;
-i2s_config_t          s_i2s_config;
-i2s_pin_config_t      s_pin_config;
+i2s_chan_handle_t     s_i2s_tx_handle = {};
+i2s_chan_config_t     s_i2s_chan_cfg = {}; // stores I2S channel values
+i2s_std_config_t      s_i2s_std_cfg = {};  // stores I2S driver values
 char*                 s_chbuf = NULL;
 uint8_t               s_vol = 64;
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------
 void config_i2s() {
 
-    // setup default i2s config
-    s_i2s_config.mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_TX);
-    s_i2s_config.sample_rate = 44100;
-    s_i2s_config.bits_per_sample = (i2s_bits_per_sample_t) 16;
-    s_i2s_config.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
-    s_i2s_config.communication_format = (i2s_comm_format_t) (I2S_COMM_FORMAT_STAND_I2S | I2S_COMM_FORMAT_STAND_MSB);
-    s_i2s_config.intr_alloc_flags = 0; // default interrupt priority
-    s_i2s_config.dma_buf_count = 8;
-    s_i2s_config.dma_buf_len = 64;
-    s_i2s_config.tx_desc_auto_clear = true;
-    s_i2s_config.use_apll = false;
+    s_i2s_chan_cfg.id            = (i2s_port_t)I2S_NUM_0;  // I2S_NUM_AUTO, I2S_NUM_0, I2S_NUM_1
+    s_i2s_chan_cfg.role          = I2S_ROLE_MASTER;        // I2S controller master role, bclk and lrc signal will be set to output
+    s_i2s_chan_cfg.dma_desc_num  = 16;                     // number of DMA buffer
+    s_i2s_chan_cfg.dma_frame_num = 512;                    // I2S frame number in one DMA buffer.
+    s_i2s_chan_cfg.auto_clear    = true;                   // i2s will always send zero automatically if no data to send
+    i2s_new_channel(&s_i2s_chan_cfg, &s_i2s_tx_handle, NULL);
 
-    i2s_driver_install(s_i2s_port, &s_i2s_config, 0, NULL);
-
-    // setup default pins
-    s_pin_config.bck_io_num = 27;                 // BCLK
-    s_pin_config.ws_io_num = 26;                  // LRC
-    s_pin_config.data_out_num = 25;               // DOUT
-    s_pin_config.data_in_num = I2S_PIN_NO_CHANGE; // DIN
-
-    i2s_set_pin(s_i2s_port, &s_pin_config);
+    s_i2s_std_cfg.slot_cfg.data_bit_width = I2S_DATA_BIT_WIDTH_16BIT;  // Bits per sample
+    s_i2s_std_cfg.slot_cfg.slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO;   // I2S channel slot bit-width equals to data bit-width
+    s_i2s_std_cfg.slot_cfg.slot_mode      = I2S_SLOT_MODE_STEREO;      // I2S_SLOT_MODE_MONO, I2S_SLOT_MODE_STEREO,
+    s_i2s_std_cfg.slot_cfg.slot_mask      = I2S_STD_SLOT_BOTH;         // I2S_STD_SLOT_LEFT, I2S_STD_SLOT_RIGHT
+    s_i2s_std_cfg.slot_cfg.ws_width       = I2S_DATA_BIT_WIDTH_16BIT;  // WS signal width (i.e. the number of bclk ticks that ws signal is high)
+    s_i2s_std_cfg.slot_cfg.ws_pol         = false;                     // WS signal polarity, set true to enable high lever first
+    s_i2s_std_cfg.slot_cfg.bit_shift      = false;                     // Set to enable bit shift in Philips mode
+    s_i2s_std_cfg.slot_cfg.msb_right      = true;                      // Set to place right channel data at the MSB in the FIFO
+    s_i2s_std_cfg.gpio_cfg.bclk           = I2S_GPIO_UNUSED;           // BCLK, Assignment in setPinout()
+    s_i2s_std_cfg.gpio_cfg.din            = I2S_GPIO_UNUSED;           // not used
+    s_i2s_std_cfg.gpio_cfg.dout           = I2S_GPIO_UNUSED;           // DOUT, Assignment in setPinout()
+    s_i2s_std_cfg.gpio_cfg.mclk           = I2S_GPIO_UNUSED;           // MCLK, Assignment in setPinout()
+    s_i2s_std_cfg.gpio_cfg.ws             = I2S_GPIO_UNUSED;           // LRC,  Assignment in setPinout()
+    s_i2s_std_cfg.gpio_cfg.invert_flags.mclk_inv = false;
+    s_i2s_std_cfg.gpio_cfg.invert_flags.bclk_inv = false;
+    s_i2s_std_cfg.gpio_cfg.invert_flags.ws_inv   = false;
+    s_i2s_std_cfg.clk_cfg.sample_rate_hz = 44100;
+    s_i2s_std_cfg.clk_cfg.clk_src        = I2S_CLK_SRC_DEFAULT;        // Select PLL_F160M as the default source clock
+    s_i2s_std_cfg.clk_cfg.mclk_multiple  = I2S_MCLK_MULTIPLE_128;      // mclk = sample_rate * 256
+    i2s_channel_init_std_mode(s_i2s_tx_handle, &s_i2s_std_cfg);
 }
 //----------------------------------------------------------------------------------------------------------------------------------------------------
 void set_i2s_pinout(int8_t BCLK, int8_t LRC, int8_t DOUT){ // overwrite default pins
 
-    s_pin_config.bck_io_num   = BCLK;              // BCLK
-    s_pin_config.ws_io_num    = LRC;               // LRC
-    s_pin_config.data_out_num = DOUT;              // DOUT
-    s_pin_config.data_in_num  = I2S_PIN_NO_CHANGE; // DIN
-
-    i2s_set_pin(s_i2s_port, &s_pin_config);
+   i2s_std_gpio_config_t gpio_cfg = {};
+    gpio_cfg.bclk = (gpio_num_t)BCLK;
+    gpio_cfg.din = (gpio_num_t)I2S_GPIO_UNUSED;
+    gpio_cfg.dout = (gpio_num_t)DOUT;
+    gpio_cfg.mclk = (gpio_num_t)0;
+    gpio_cfg.ws = (gpio_num_t)LRC;
+  //  i2s_channel_disable(s_i2s_tx_handle);
+    i2s_channel_reconfig_std_gpio(s_i2s_tx_handle, &gpio_cfg);
+    i2s_channel_enable(s_i2s_tx_handle);
 }
 //----------------------------------------------------------------------------------------------------------------------------------------------------
 esp_a2d_audio_state_t get_audio_state() {
@@ -294,16 +305,18 @@ void bt_av_hdl_a2d_evt(uint16_t event, void *p_param){
         }
         // for now only SBC stream is supported
         if (a2d->audio_cfg.mcc.type == ESP_A2D_MCT_SBC) {
-            s_i2s_config.sample_rate = 16000;
+            s_i2s_std_cfg.clk_cfg.sample_rate_hz = 16000;
             char oct0 = a2d->audio_cfg.mcc.cie.sbc[0];
             if (oct0 & (0x01 << 6)) {
-                s_i2s_config.sample_rate = 32000;
+                s_i2s_std_cfg.clk_cfg.sample_rate_hz = 32000;
             } else if (oct0 & (0x01 << 5)) {
-                s_i2s_config.sample_rate = 44100;
+                s_i2s_std_cfg.clk_cfg.sample_rate_hz = 44100;
             } else if (oct0 & (0x01 << 4)) {
-                s_i2s_config.sample_rate = 48000;
+                s_i2s_std_cfg.clk_cfg.sample_rate_hz = 48000;
             }
-            i2s_set_clk(s_i2s_port, s_i2s_config.sample_rate, s_i2s_config.bits_per_sample, (i2s_channel_t)2);
+            i2s_channel_disable(s_i2s_tx_handle);
+            i2s_channel_reconfig_std_slot(s_i2s_tx_handle, &s_i2s_std_cfg.slot_cfg);
+            i2s_channel_enable(s_i2s_tx_handle);
             if(bt_info){
                 xSemaphoreTake(s_mutex_bt_message, 100);
                 sprintf(s_chbuf, "configure audio player [%02x-%02x-%02x-%02x]", a2d->audio_cfg.mcc.cie.sbc[0], a2d->audio_cfg.mcc.cie.sbc[1],
@@ -313,7 +326,7 @@ void bt_av_hdl_a2d_evt(uint16_t event, void *p_param){
             }
             if(bt_state){
                 xSemaphoreTake(s_mutex_bt_message, 100);
-                sprintf(s_chbuf, "audio player configured, samplerate = %d", s_i2s_config.sample_rate);
+                sprintf(s_chbuf, "audio player configured, samplerate = %lu", s_i2s_std_cfg.clk_cfg.sample_rate_hz);
                 bt_state(s_chbuf);
                 xSemaphoreGive(s_mutex_bt_message);
             }
@@ -379,7 +392,7 @@ void bt_av_hdl_avrc_evt(uint16_t event, void *p_param){
         case ESP_AVRC_CT_METADATA_RSP_EVT: {
             if(bt_info){
                 xSemaphoreTake(s_mutex_bt_message, 100);
-                sprintf(s_chbuf, "AVRC metadata rsp: attribute id 0x%x, %s", (uint32_t)rc->meta_rsp.attr_id, rc->meta_rsp.attr_text);
+                sprintf(s_chbuf, "AVRC metadata rsp: attribute id 0x%lx, %s", (uint32_t)rc->meta_rsp.attr_id, rc->meta_rsp.attr_text);
                 bt_info(s_chbuf);
                 xSemaphoreGive(s_mutex_bt_message);
             }
@@ -389,7 +402,7 @@ void bt_av_hdl_avrc_evt(uint16_t event, void *p_param){
         case ESP_AVRC_CT_CHANGE_NOTIFY_EVT: {
             if(bt_info){
                 xSemaphoreTake(s_mutex_bt_message, 100);
-                sprintf(s_chbuf, "AVRC event notification: %d, param: %d", rc->change_ntf.event_id, rc->change_ntf.event_parameter);
+                sprintf(s_chbuf, "AVRC event notification: %u", rc->change_ntf.event_id);
                 bt_info(s_chbuf);
                 xSemaphoreGive(s_mutex_bt_message);
             }
@@ -399,7 +412,7 @@ void bt_av_hdl_avrc_evt(uint16_t event, void *p_param){
         case ESP_AVRC_CT_REMOTE_FEATURES_EVT: {
             if(bt_info){
                 xSemaphoreTake(s_mutex_bt_message, 100);
-                sprintf(s_chbuf, "AVRC remote features 0x%x", rc->rmt_feats.feat_mask);
+                sprintf(s_chbuf, "AVRC remote features 0x%lx", rc->rmt_feats.feat_mask);
                 bt_info(s_chbuf);
                 xSemaphoreGive(s_mutex_bt_message);
             }
@@ -503,8 +516,8 @@ void bt_app_a2d_data_cb(const uint8_t *data, uint32_t len) {
         s32 = s16_1 + (s16_2 << 16);
 
         size_t bytesWritten = 0;
-        if(i2s_write(s_i2s_port,(const char*) &s32, sizeof(uint32_t), &bytesWritten, portMAX_DELAY) != ESP_OK){
-            log_e("i2s_write has failed");
+        if(i2s_channel_write(s_i2s_tx_handle, (const char*)&s32, sizeof(uint32_t), &i2s_bytes_written, portMAX_DELAY)){
+             log_e("i2s_write has failed");
         }
         i2s_bytes_written += bytesWritten;
     }
@@ -578,6 +591,8 @@ exit:
 }
 //----------------------------------------------------------------------------------------------------------------------------------------------------
 bool a2dp_sink_init(String deviceName){
+
+
     esp_err_t res;
     if(s_chbuf){free(s_chbuf); s_chbuf = NULL;}
     s_chbuf = (char*)malloc(512);
@@ -599,7 +614,7 @@ bool a2dp_sink_init(String deviceName){
             xSemaphoreGive(s_mutex_bt_message);
         }
     }
-
+  
     res = esp_bluedroid_init();
     if(res != ESP_OK) {log_e("Failed to initialize bluedroid"); return false;}
     else{
@@ -633,6 +648,7 @@ bool a2dp_sink_init(String deviceName){
 //    pin_code[2] = '3';
 //    pin_code[3] = '4';
 //    esp_bt_gap_set_pin(pin_type, 4, pin_code);
+
 
     config_i2s();
 

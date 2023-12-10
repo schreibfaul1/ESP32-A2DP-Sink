@@ -16,7 +16,7 @@
 #include "esp_bt_device.h"
 #include "esp_gap_bt_api.h"
 #include "esp_a2dp_api.h"
-#include "driver/i2s.h"
+#include "driver/i2s_std.h"
 #include "esp_avrc_api.h"
 
 #define APP_SIG_WORK_DISPATCH (0x01)
